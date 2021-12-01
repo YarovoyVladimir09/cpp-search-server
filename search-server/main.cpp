@@ -221,6 +221,7 @@ private:
         return query;
     }
 
+    // Existence required
     double ComputeWordInverseDocumentFreq(const string& word) const {
         return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
@@ -260,7 +261,10 @@ private:
         return matched_documents;
     }
 };
-
+/*
+   Подставьте сюда вашу реализацию макросов
+   ASSERT, ASSERT_EQUAL, ASSERT_EQUAL_HINT, ASSERT_HINT и RUN_TEST
+*/
 template <typename T, typename U>
 void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& u_str, const string& file,
     const string& func, unsigned line, const string& hint) {
@@ -300,11 +304,13 @@ void AssertImpl(bool value, const string& expr_str, const string& file, const st
 template <typename FUNC>
 void RunTestImpl(FUNC func, const string& func_name) {
     func();
-    cerr << func_name << " OK" << endl;
+    cerr << func_name << " OK" << endl;/* Напишите недостающий код */
 }
 
 #define RUN_TEST(func) RunTestImpl((func),#func) 
+// -------- Начало модульных тестов поисковой системы ----------
 
+// Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
 void TestExcludeStopWordsFromAddedDocumentContent() {
     const int doc_id = 42;
     const string content = "cat in the city"s;
@@ -335,8 +341,9 @@ void TestOnRelevanceAndRating() {
     const string content3 = "city dogs and cat like coffee"s;
     const vector<int> ratings1 = { 1, 2, 3 };
     const vector<int> ratings2 = { 1, 1, 1 };
-    const vector<int> ratings3 = { 3, 3, 3 };
-
+    const vector<int> ratings3 = { -3, -3, -3 };
+    // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
+    // находит нужный документ
     {
         SearchServer server;
         server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
@@ -350,10 +357,13 @@ void TestOnRelevanceAndRating() {
         ASSERT(doc0.id == 2);
         ASSERT(doc2.id == 1);
         ASSERT(doc0.rating == 1);
+        ASSERT(doc1.rating == -3);
         ASSERT(doc2.rating == 2);
+        ASSERT(doc2.relevance == 0);
+        
     }
 }
-void TestOnFilterPreducateAndRelevance() {
+void TestOnFilterPredicateAndRelevance() {
     const int doc_id1 = 1;
     const int doc_id2 = 2;
     const int doc_id3 = 3;
@@ -363,7 +373,8 @@ void TestOnFilterPreducateAndRelevance() {
     const vector<int> ratings1 = { 1, 2, 3 };
     const vector<int> ratings2 = { 1, 1, 1 };
     const vector<int> ratings3 = { 3, 3, 3 };
-
+    // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
+    // находит нужный документ
     {
         SearchServer server;
         server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
@@ -376,7 +387,7 @@ void TestOnFilterPreducateAndRelevance() {
 
     }
 }
-void MinusWordsNotAccesAndMatching()
+void TestMinusWordsNotAccesAndMatching()
 {
     const int doc_id1 = 10;
     const int doc_id2 = 20;
@@ -384,7 +395,8 @@ void MinusWordsNotAccesAndMatching()
     const string content2 = "dog bark in the city"s;
     const vector<int> ratings1 = { 1, 2, 3 };
     const vector<int> ratings2 = { 2, 2, 3 };
-
+    // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
+    // находит нужный документ
     {
         SearchServer server;
         server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
@@ -407,15 +419,19 @@ void MinusWordsNotAccesAndMatching()
 
 }
 
+// Функция TestSearchServer является точкой входа для запуска тестов
 void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
     RUN_TEST (TestOnRelevanceAndRating);
-    RUN_TEST (MinusWordsNotAccesAndMatching);
-    RUN_TEST (TestOnFilterPreducateAndRelevance);
-    // Íå çàáóäüòå âûçûâàòü îñòàëüíûå òåñòû çäåñü
+    RUN_TEST (TestMinusWordsNotAccesAndMatching);
+    RUN_TEST (TestOnFilterPredicateAndRelevance);
+    // Не забудьте вызывать остальные тесты здесь
 }
+
+// --------- Окончание модульных тестов поисковой системы -----------
 
 int main() {
     TestSearchServer();
+    // Если вы видите эту строку, значит все тесты прошли успешно
     cout << "Search server testing finished"s << endl;
 }
