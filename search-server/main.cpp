@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <numeric>
 #include <set>
 #include <string>
 #include <utility>
@@ -77,7 +78,7 @@ enum class DocumentStatus {
     IRRELEVANT,
     BANNED,
     REMOVED,
-}; 
+};
 class SearchServer {
 public:
     template <typename StringContainer>
@@ -86,7 +87,7 @@ public:
     {
         for (string word : stop_words_)
             if (!IsValidWord(word))
-                throw invalid_argument("Error in Constuctor of SearchServer");
+                throw invalid_argument("Использование специальных символов");
     }
 
     explicit SearchServer(const string& stop_words_text) : SearchServer(SplitIntoWords(stop_words_text))
@@ -94,9 +95,9 @@ public:
     }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
-        if ( document_id < 0 || ind_.count(document_id) || !IsValidWord(document))
+        if (document_id < 0 || ind_.count(document_id) || !IsValidWord(document))
         {
-            throw invalid_argument("Error in AddDocument");
+            throw invalid_argument("Неправильно указан id документа или документ содержит спец символы");
         }
         ind_[document_id] = ++index_;
         const vector<string> words = SplitIntoWordsNoStop(document);
@@ -106,21 +107,22 @@ public:
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
         documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
-        
+
     }
 
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const {
-        if (!ErrorCheck(raw_query) ||!IsValidWord(raw_query))
+        if (!ValidateQuery(raw_query) || !IsValidWord(raw_query))
         {
-            throw invalid_argument("Error in FindTopDocuments");
+            throw invalid_argument("Использование спец символов или нелогичное использование (-)");
         }
         const Query query = ParseQuery(raw_query);
 
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-            if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+            const double err = abs(lhs.relevance - rhs.relevance);
+            if (err < 1e-6) {
                 return lhs.rating > rhs.rating;
             }
             else {
@@ -149,14 +151,14 @@ public:
 
     int GetDocumentId(int index) const {
         if (!ind_.count(index))
-            throw out_of_range("Error in GetDocumentId");
+            throw out_of_range("Не найден документ по индексу");
         return ind_.at(index);
     }
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        if (!ErrorCheck(raw_query) || !IsValidWord(raw_query))
+        if (!ValidateQuery(raw_query) || !IsValidWord(raw_query))
         {
-            throw invalid_argument("Error in FindTopDocuments");
+            throw invalid_argument("Использование спец символов или нелогичное использование (-)");
         }
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
@@ -194,7 +196,7 @@ private:
         return stop_words_.count(word) > 0;
     }
 
-    bool ErrorCheck(const string& text) const
+    bool ValidateQuery(const string& text) const
     {
         vector<string> check = SplitIntoWords(text);
         for (string word : check)
@@ -232,10 +234,8 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        int rating_sum = accumulate(ratings.begin(),ratings.end(),0);
+
         return rating_sum / static_cast<int>(ratings.size());
     }
 
