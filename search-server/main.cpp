@@ -1,14 +1,14 @@
+
 #include <algorithm>
-#include <cassert>
 #include <cmath>
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
-#include <iostream>
-#include <tuple>
-
+#include <stdexcept>
+#include <optional>
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
@@ -48,81 +48,116 @@ vector<string> SplitIntoWords(const string& text) {
 }
 
 struct Document {
-    int id;
-    double relevance;
-    int rating;
+    Document() = default;
+
+    Document(int id, double relevance, int rating)
+        : id(id)
+        , relevance(relevance)
+        , rating(rating) {
+    }
+
+    int id = 0;
+    double relevance = 0.0;
+    int rating = 0;
 };
+
+template <typename StringContainer>
+set<string> MakeUniqueNonEmptyStrings(const StringContainer& strings) {
+    set<string> non_empty_strings;
+    for (const string& str : strings) {
+        if (!str.empty()) {
+            non_empty_strings.insert(str);
+        }
+    }
+    return non_empty_strings;
+}
 
 enum class DocumentStatus {
     ACTUAL,
     IRRELEVANT,
     BANNED,
     REMOVED,
-};
-
+}; 
 class SearchServer {
 public:
-    void SetStopWords(const string& text) {
-        for (const string& word : SplitIntoWords(text)) {
-            stop_words_.insert(word);
-        }
+    template <typename StringContainer>
+    explicit SearchServer(const StringContainer& stop_words)
+        : stop_words_(MakeUniqueNonEmptyStrings(stop_words))
+    {
+        for (string word : stop_words_)
+            if (!IsValidWord(word))
+                throw invalid_argument("Error in Constuctor of SearchServer");
+    }
+
+    explicit SearchServer(const string& stop_words_text) : SearchServer(SplitIntoWords(stop_words_text))
+    {
     }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
+        if ( document_id < 0 || ind_.count(document_id) || !IsValidWord(document))
+        {
+            throw invalid_argument("Error in AddDocument");
+        }
+        ind_[document_id] = ++index_;
         const vector<string> words = SplitIntoWordsNoStop(document);
+
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
-
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
-        documents_.emplace(document_id,
-            DocumentData{
-                ComputeAverageRating(ratings),
-                status
-            });
+        documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
+        
     }
-    template<typename KeyMapper>
-    vector<Document> FindTopDocuments(const string& raw_query, KeyMapper key) const {
-        const Query query = ParseQuery(raw_query);
-        auto matched_documents = FindAllDocuments(query, key);
 
-        sort(matched_documents.begin(), matched_documents.end(),
-            [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
-                    return lhs.rating > rhs.rating;
-                }
-                else {
-                    return lhs.relevance > rhs.relevance;
-                }
-            });
-        sort(matched_documents.begin(), matched_documents.end(),
-            [key](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
-                    return lhs.rating > rhs.rating;
-                }
-                else {
-                    return lhs.relevance > rhs.relevance;
-                }
+    template <typename DocumentPredicate>
+    vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const {
+        if (!ErrorCheck(raw_query) ||!IsValidWord(raw_query))
+        {
+            throw invalid_argument("Error in FindTopDocuments");
+        }
+        const Query query = ParseQuery(raw_query);
+
+        auto matched_documents = FindAllDocuments(query, document_predicate);
+
+        sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
+            if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                return lhs.rating > rhs.rating;
+            }
+            else {
+                return lhs.relevance > rhs.relevance;
+            }
             });
         if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
             matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
         }
         return matched_documents;
     }
+
     vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status) const {
-        auto matched_documents = FindTopDocuments(raw_query, [status](int document_id, DocumentStatus status1, int rating) { return status1 == status; });
-        return matched_documents;
+        return FindTopDocuments(raw_query, [status](int document_id, DocumentStatus document_status, int rating) {
+            return document_status == status;
+            });
     }
+
     vector<Document> FindTopDocuments(const string& raw_query) const {
-        auto matched_documents = FindTopDocuments(raw_query, [](int document_id, DocumentStatus status, int rating) { return status == DocumentStatus::ACTUAL; });
-        return matched_documents;
+        return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
     }
 
     int GetDocumentCount() const {
         return documents_.size();
     }
 
+    int GetDocumentId(int index) const {
+        if (!ind_.count(index))
+            throw out_of_range("Error in GetDocumentId");
+        return ind_.at(index);
+    }
+
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
+        if (!ErrorCheck(raw_query) || !IsValidWord(raw_query))
+        {
+            throw invalid_argument("Error in FindTopDocuments");
+        }
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         for (const string& word : query.plus_words) {
@@ -142,21 +177,40 @@ public:
                 break;
             }
         }
-        return { matched_words, documents_.at(document_id).status };
+        return tie(matched_words, documents_.at(document_id).status);
     }
-
 private:
     struct DocumentData {
         int rating;
         DocumentStatus status;
     };
-
-    set<string> stop_words_;
+    map<int, int> ind_;
+    int index_ = 0;
+    const set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
 
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
+    }
+
+    bool ErrorCheck(const string& text) const
+    {
+        vector<string> check = SplitIntoWords(text);
+        for (string word : check)
+        {
+            int i = 0;
+            for (char c : word)
+            {
+                if (c == '-')
+                    i++;
+            }
+            if (i >= 2)
+                return false;
+        }
+        if (*(check.end() - 1) == "-" || !IsValidWord(text))
+            return false;
+        return true;
     }
 
     vector<string> SplitIntoWordsNoStop(const string& text) const {
@@ -168,7 +222,12 @@ private:
         }
         return words;
     }
-
+    static bool IsValidWord(const string& word) {
+        // A valid word must not contain special characters
+        return none_of(word.begin(), word.end(), [](char c) {
+            return c >= '\0' && c < ' ';
+            });
+    }
     static int ComputeAverageRating(const vector<int>& ratings) {
         if (ratings.empty()) {
             return 0;
@@ -193,11 +252,7 @@ private:
             is_minus = true;
             text = text.substr(1);
         }
-        return {
-            text,
-            is_minus,
-            IsStopWord(text)
-        };
+        return { text, is_minus, IsStopWord(text) };
     }
 
     struct Query {
@@ -225,9 +280,9 @@ private:
     double ComputeWordInverseDocumentFreq(const string& word) const {
         return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
-    template<typename KeyMapper>
-    vector<Document> FindAllDocuments(const Query& query, KeyMapper status) const {
 
+    template <typename DocumentPredicate>
+    vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const {
         map<int, double> document_to_relevance;
         for (const string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
@@ -235,7 +290,8 @@ private:
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
             for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                if (status(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
+                const auto& document_data = documents_.at(document_id);
+                if (document_predicate(document_id, document_data.status, document_data.rating)) {
                     document_to_relevance[document_id] += term_freq * inverse_document_freq;
                 }
             }
@@ -252,186 +308,85 @@ private:
 
         vector<Document> matched_documents;
         for (const auto [document_id, relevance] : document_to_relevance) {
-            matched_documents.push_back({
-                document_id,
-                relevance,
-                documents_.at(document_id).rating
-                });
+            matched_documents.push_back({ document_id, relevance, documents_.at(document_id).rating });
         }
         return matched_documents;
     }
 };
-/*
-   Подставьте сюда вашу реализацию макросов
-   ASSERT, ASSERT_EQUAL, ASSERT_EQUAL_HINT, ASSERT_HINT и RUN_TEST
-*/
-template <typename T, typename U>
-void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& u_str, const string& file,
-    const string& func, unsigned line, const string& hint) {
-    if (t != u) {
-        cout << boolalpha;
-        cout << file << "("s << line << "): "s << func << ": "s;
-        cout << "ASSERT_EQUAL("s << t_str << ", "s << u_str << ") failed: "s;
-        cout << t << " != "s << u << "."s;
-        if (!hint.empty()) {
-            cout << " Hint: "s << hint;
+
+// ------------ Пример использования ----------------
+
+void PrintDocument(const Document& document) {
+    cout << "{ "s
+        << "document_id = "s << document.id << ", "s
+        << "relevance = "s << document.relevance << ", "s
+        << "rating = "s << document.rating << " }"s << endl;
+}
+
+void PrintMatchDocumentResult(int document_id, const vector<string>& words, DocumentStatus status) {
+    cout << "{ "s
+        << "document_id = "s << document_id << ", "s
+        << "status = "s << static_cast<int>(status) << ", "s
+        << "words ="s;
+    for (const string& word : words) {
+        cout << ' ' << word;
+    }
+    cout << "}"s << endl;
+}
+
+void AddDocument(SearchServer& search_server, int document_id, const string& document, DocumentStatus status,
+    const vector<int>& ratings) {
+    try {
+        search_server.AddDocument(document_id, document, status, ratings);
+    }
+    catch (const exception& e) {
+        cout << "Ошибка добавления документа "s << document_id << ": "s << e.what() << endl;
+    }
+}
+
+void FindTopDocuments(const SearchServer& search_server, const string& raw_query) {
+    cout << "Результаты поиска по запросу: "s << raw_query << endl;
+    try {
+        for (const Document& document : search_server.FindTopDocuments(raw_query)) {
+            PrintDocument(document);
         }
-        cout << endl;
-        abort();
+    }
+    catch (const exception& e) {
+        cout << "Ошибка поиска: "s << e.what() << endl;
     }
 }
 
-#define ASSERT_EQUAL(a, b) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, ""s)
-
-#define ASSERT_EQUAL_HINT(a, b, hint) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, (hint))
-
-void AssertImpl(bool value, const string& expr_str, const string& file, const string& func, unsigned line,
-    const string& hint) {
-    if (!value) {
-        cout << file << "("s << line << "): "s << func << ": "s;
-        cout << "ASSERT("s << expr_str << ") failed."s;
-        if (!hint.empty()) {
-            cout << " Hint: "s << hint;
+void MatchDocuments(const SearchServer& search_server, const string& query) {
+    try {
+        cout << "Матчинг документов по запросу: "s << query << endl;
+        const int document_count = search_server.GetDocumentCount();
+        for (int index = 0; index < document_count; ++index) {
+            const int document_id = search_server.GetDocumentId(index);
+            const auto [words, status] = search_server.MatchDocument(query, document_id);
+            PrintMatchDocumentResult(document_id, words, status);
         }
-        cout << endl;
-        abort();
+    }
+    catch (const exception& e) {
+        cout << "Ошибка матчинга документов на запрос "s << query << ": "s << e.what() << endl;
     }
 }
-
-#define ASSERT(expr) AssertImpl((expr), #expr, __FILE__, __FUNCTION__, __LINE__, ""s)
-
-#define ASSERT_HINT(expr, hint) AssertImpl((expr), #expr, __FILE__, __FUNCTION__, __LINE__, (hint))
-template <typename FUNC>
-void RunTestImpl(FUNC func, const string& func_name) {
-    func();
-    cerr << func_name << " OK" << endl;/* Напишите недостающий код */
-}
-
-#define RUN_TEST(func) RunTestImpl((func),#func) 
-// -------- Начало модульных тестов поисковой системы ----------
-
-// Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
-void TestExcludeStopWordsFromAddedDocumentContent() {
-    const int doc_id = 42;
-    const string content = "cat in the city"s;
-    const vector<int> ratings = { 1, 2, 3 };
-    {
-        SearchServer server;
-        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
-        const auto found_docs = server.FindTopDocuments("in"s);
-        ASSERT_EQUAL(found_docs.size(), 1u);
-        const Document& doc0 = found_docs[0];
-        ASSERT_EQUAL(doc0.id, doc_id);
-    }
-
-    {
-        SearchServer server;
-        server.SetStopWords("in the"s);
-        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
-        ASSERT_HINT(server.FindTopDocuments("in"s).empty(), "Stop words must be excluded from documents"s);
-    }
-}
-
-void TestOnRelevanceAndRating() {
-    const int doc_id1 = 1;
-    const int doc_id2 = 2;
-    const int doc_id3 = 3;
-    const string content1 = "cat in the city"s;
-    const string content2 = "coffee on a main street in the city"s;
-    const string content3 = "city dogs and cat like coffee"s;
-    const vector<int> ratings1 = { 1, 2, 3 };
-    const vector<int> ratings2 = { 1, 1, 1 };
-    const vector<int> ratings3 = { -3, -3, -3 };
-    // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
-    // находит нужный документ
-    {
-        SearchServer server;
-        server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
-        server.AddDocument(doc_id2, content2, DocumentStatus::ACTUAL, ratings2);
-        server.AddDocument(doc_id3, content3, DocumentStatus::ACTUAL, ratings3);
-
-        const auto found_docs = server.FindTopDocuments("coffee main city"s);
-        const Document& doc0 = found_docs[0];
-        const Document& doc1 = found_docs[1];
-        const Document& doc2 = found_docs[2];
-        ASSERT(doc0.id == 2);
-        ASSERT(doc2.id == 1);
-        ASSERT(doc0.rating == 1);
-        ASSERT(doc1.rating == -3);
-        ASSERT(doc2.rating == 2);
-        ASSERT(doc2.relevance == 0);
-        
-    }
-}
-void TestOnFilterPredicateAndRelevance() {
-    const int doc_id1 = 1;
-    const int doc_id2 = 2;
-    const int doc_id3 = 3;
-    const string content1 = "cat in the city"s;
-    const string content2 = "coffee on a main street in the city"s;
-    const string content3 = "city dogs and cat like coffee"s;
-    const vector<int> ratings1 = { 1, 2, 3 };
-    const vector<int> ratings2 = { 1, 1, 1 };
-    const vector<int> ratings3 = { 3, 3, 3 };
-    // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
-    // находит нужный документ
-    {
-        SearchServer server;
-        server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
-        server.AddDocument(doc_id2, content2, DocumentStatus::ACTUAL, ratings2);
-        server.AddDocument(doc_id3, content3, DocumentStatus::BANNED, ratings3);
-        auto key = [](int document_id, DocumentStatus status, int rating) { return status == DocumentStatus::BANNED; };
-        const auto found_docs = server.FindTopDocuments("coffee main city"s, key);
-        const Document& doc0 = found_docs[0];
-       ASSERT(doc0.id == doc_id3);
-
-    }
-}
-void TestMinusWordsNotAccesAndMatching()
-{
-    const int doc_id1 = 10;
-    const int doc_id2 = 20;
-    const string content1 = "cat in the city"s;
-    const string content2 = "dog bark in the city"s;
-    const vector<int> ratings1 = { 1, 2, 3 };
-    const vector<int> ratings2 = { 2, 2, 3 };
-    // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
-    // находит нужный документ
-    {
-        SearchServer server;
-        server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
-        server.AddDocument(doc_id2, content2, DocumentStatus::ACTUAL, ratings2);
-        const auto found_docs = server.FindTopDocuments("-dog city"s);
-       ASSERT(found_docs.size() == 1);
-        const Document& doc0 = found_docs[0];
-        ASSERT(doc0.id == doc_id1);
-        const auto matching_docs1 = server.MatchDocument("-dog city"s, doc_id1);
-        const auto matching_docs2 = server.MatchDocument("-dog city"s, doc_id2);
-        const vector<string> ex1 = { "city"s };
-        const vector<string> ex2 = {};
-        tuple<vector<string>, DocumentStatus> m_d1 = { ex1,DocumentStatus::ACTUAL };
-        tuple<vector<string>, DocumentStatus> m_d2 = { ex2,DocumentStatus::ACTUAL };
-        ASSERT(matching_docs1 == m_d1);
-        ASSERT(matching_docs2 == m_d2);
-
-    }
-
-
-}
-
-// Функция TestSearchServer является точкой входа для запуска тестов
-void TestSearchServer() {
-    RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
-    RUN_TEST (TestOnRelevanceAndRating);
-    RUN_TEST (TestMinusWordsNotAccesAndMatching);
-    RUN_TEST (TestOnFilterPredicateAndRelevance);
-    // Не забудьте вызывать остальные тесты здесь
-}
-
-// --------- Окончание модульных тестов поисковой системы -----------
 
 int main() {
-    TestSearchServer();
-    // Если вы видите эту строку, значит все тесты прошли успешно
-    cout << "Search server testing finished"s << endl;
+    setlocale(LC_ALL, "rus");
+    SearchServer search_server("и в на"s);
+
+    AddDocument(search_server, 1, "пушистый кот пушистый хвост"s, DocumentStatus::ACTUAL, { 7, 2, 7 });
+    AddDocument(search_server, 1, "пушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, { 1, 2 });
+    AddDocument(search_server, -1, "пушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, { 1, 2 });
+    AddDocument(search_server, 3, "большой пёс скво\x12рец евгений"s, DocumentStatus::ACTUAL, { 1, 3, 2 });
+    AddDocument(search_server, 4, "большой пёс скворец евгений"s, DocumentStatus::ACTUAL, { 1, 1, 1 });
+
+    FindTopDocuments(search_server, "пушистый -пёс"s);
+    FindTopDocuments(search_server, "пушистый --кот"s);
+    FindTopDocuments(search_server, "пушистый -"s);
+
+    MatchDocuments(search_server, "пушистый пёс"s);
+    MatchDocuments(search_server, "модный -кот"s);
+    MatchDocuments(search_server, "модный --пёс"s);
+    MatchDocuments(search_server, "пушистый - хвост"s);
 }
