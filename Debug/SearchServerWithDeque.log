@@ -1,0 +1,4 @@
+﻿  search_server.cpp
+C:\Users\Vova09\source\repos\SearchServerWithDeque\SearchServerWithDeque\search_server.h(19,37): warning C4455: "operator ""s": идентификаторы литеральных суффиксов, которые начинаются не с символа подчеркивания, зарезервированы
+C:\Users\Vova09\source\repos\SearchServerWithDeque\SearchServerWithDeque\search_server.cpp(3,37): warning C4455: "operator ""s": идентификаторы литеральных суффиксов, которые начинаются не с символа подчеркивания, зарезервированы
+  SearchServerWithDeque.vcxproj -> C:\Users\Vova09\source\repos\SearchServerWithDeque\Debug\SearchServerWithDeque.exe

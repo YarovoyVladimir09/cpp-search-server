@@ -12,7 +12,7 @@
 #include <deque>
 #include <numeric>
 
-#include "string_proccessing.h"
+#include "string_processing.h"
 #include "document.h"
 #include "read_input_functions.h"
 
@@ -48,7 +48,13 @@ public:
 
     int GetDocumentCount() const;
 
-    int GetDocumentId(int index) const;
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+
+    void RemoveDocument(int document_id);
+
+    const std::set<int>::const_iterator begin() const;
+
+    const std::set<int>::const_iterator end() const;
 
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
@@ -60,7 +66,8 @@ private:
     const std::set<std::string> stop_words_;
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
     std::map<int, DocumentData> documents_;
-    std::vector<int> document_ids_;
+    std::set<int> document_ids_;
+    std::map<int, std::map<std::string, double>> words_freq_in_doc_;
 
     bool IsStopWord(const std::string& word) const;
 
@@ -93,7 +100,7 @@ private:
 };
 
 template <typename DocumentPredicate>
-inline std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
+ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
     const auto query = SearchServer::ParseQuery(raw_query);
 
     auto matched_documents = SearchServer::FindAllDocuments(query, document_predicate);
@@ -113,15 +120,7 @@ inline std::vector<Document> SearchServer::FindTopDocuments(const std::string& r
     return matched_documents;
 }
 
-inline std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
-    return SearchServer::FindTopDocuments(raw_query, [status](int document_id, DocumentStatus document_status, int rating) {
-        return document_status == status;
-        });
-}
 
-inline std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query) const {
-    return SearchServer::FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
-}
 
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& query, DocumentPredicate document_predicate) const {
@@ -154,3 +153,4 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
     }
     return matched_documents;
 }
+

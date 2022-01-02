@@ -32,7 +32,7 @@ private:
 };
 
 template <typename DocumentPredicate>
-inline std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentPredicate document_predicate) {
+ std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentPredicate document_predicate) {
 
     std::vector<Document> request = RequestQueue::query_class.FindTopDocuments(raw_query, document_predicate);
     RequestQueue::QueryResult answer;
@@ -43,12 +43,3 @@ inline std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw
     return request;
 }
 
-inline std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentStatus status) {
-    return RequestQueue::AddFindRequest(raw_query, [status](int document_id, DocumentStatus document_status, int rating) {
-        return document_status == status;
-        });
-}
-
-inline std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query) {
-    return RequestQueue::AddFindRequest(raw_query, DocumentStatus::ACTUAL);
-}
