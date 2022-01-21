@@ -2,6 +2,12 @@
 
 using std::string_literals::operator""s;
 
+SearchServer::SearchServer(const std::string& stop_words_text)
+    : SearchServer(SplitIntoWords(stop_words_text))  // Invoke delegating constructor
+                                                     // from string container
+{
+}
+
 void SearchServer::AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings) {
     if ((document_id < 0) || (SearchServer::documents_.count(document_id) > 0)) {
         throw std::invalid_argument("Invalid document_id"s);

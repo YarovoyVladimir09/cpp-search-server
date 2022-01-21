@@ -31,11 +31,7 @@ public:
         }
     }
 
-    explicit SearchServer(const std::string& stop_words_text)
-        : SearchServer(SplitIntoWords(stop_words_text))  // Invoke delegating constructor
-                                                         // from string container
-    {
-    }
+    explicit SearchServer(const std::string& stop_words_text);
 
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
 
@@ -100,13 +96,14 @@ private:
 };
 
 template <typename DocumentPredicate>
- std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
+std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
     const auto query = SearchServer::ParseQuery(raw_query);
 
     auto matched_documents = SearchServer::FindAllDocuments(query, document_predicate);
 
     std::sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-        if (std::abs(lhs.relevance - rhs.relevance) < 1e-6) {
+        const auto fault = std::abs(lhs.relevance - rhs.relevance);
+        if (fault < 1e-6) {
             return lhs.rating > rhs.rating;
         }
         else {

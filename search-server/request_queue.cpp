@@ -1,5 +1,8 @@
 #include "request_queue.h"
 
+RequestQueue::RequestQueue(const SearchServer& search_server) :query_class(search_server) {
+}
+
 int RequestQueue::GetNoResultRequests() const {
     return std::count_if(requests_.begin(), requests_.end(), [](QueryResult step)
         {

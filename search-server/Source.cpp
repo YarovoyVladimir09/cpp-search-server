@@ -23,7 +23,7 @@
 using namespace std;
 
 int main() {
-    // LOG_DURATION_STREAM("Long task1", cout);
+     //LOG_DURATION_STREAM("Long task1", cout);
 
     SearchServer search_server("and with"s);
 
