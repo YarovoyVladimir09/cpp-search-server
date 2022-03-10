@@ -1,13 +1,10 @@
 #include "log_duration.h"
 
-LogDuration::LogDuration(const std::string& id)
-    : id_(id), output_(std::cerr) {
-
+LogDuration::LogDuration(std::string_view id, std::ostream& dst_stream)
+    : id_(id)
+    , dst_stream_(dst_stream) {
 }
 
-LogDuration::LogDuration(const std::string& id, std::ostream& out)
-    : id_(id), output_(out) {
-}
 
 LogDuration::~LogDuration() {
     using namespace std::chrono;
@@ -15,5 +12,5 @@ LogDuration::~LogDuration() {
 
     const auto end_time = Clock::now();
     const auto dur = end_time - start_time_;
-    output_ << id_ << ": "s << duration_cast<milliseconds>(dur).count() << " ms"s << std::endl;
+    dst_stream_ << id_ << ": "sv << duration_cast<milliseconds>(dur).count() << " ms"sv << std::endl;
 }

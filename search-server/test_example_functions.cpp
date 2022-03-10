@@ -7,12 +7,12 @@ void PrintDocument(const Document& document) {
         << "rating = "s << document.rating << " }"s << std::endl;
 }
 
-void PrintMatchDocumentResult(int document_id, const std::vector<std::string>& words, DocumentStatus status) {
+void PrintMatchDocumentResult(int document_id, const std::vector<std::string_view>& words, DocumentStatus status) {
     std::cout << "{ "s
         << "document_id = "s << document_id << ", "s
         << "status = "s << static_cast<int>(status) << ", "s
         << "words ="s;
-    for (const std::string& word : words) {
+    for (const std::string_view word : words) {
         std::cout << ' ' << word;
     }
     std::cout << "}"s << std::endl;
@@ -30,7 +30,6 @@ void AddDocument(SearchServer& search_server, int document_id, const std::string
 }
 
 void FindTopDocuments(const SearchServer& search_server, const std::string& raw_query) {
-    //LOG_DURATION_STREAM("Long task", std::cout);
     std::cout << "Результаты поиска по запросу: "s << raw_query << std::endl;
     try {
         for (const Document& document : search_server.FindTopDocuments(raw_query)) {
@@ -43,7 +42,6 @@ void FindTopDocuments(const SearchServer& search_server, const std::string& raw_
 }
 
 void MatchDocuments(const SearchServer& search_server, const std::string& query) {
-    //LOG_DURATION_STREAM("Long task", std::cout);
     try {
         std::cout << "Матчинг документов по запросу: "s << query << std::endl;
         for (const int document_id : search_server) {
