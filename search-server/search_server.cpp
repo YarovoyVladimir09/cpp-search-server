@@ -57,11 +57,9 @@ void SearchServer::RemoveDocument(int document_id) {
 
     SearchServer::documents_.erase(document_id);
     SearchServer::document_ids_.erase(document_id);
-    for (auto& step : SearchServer::word_to_document_freqs_)
+    for (auto& word : word_to_document_freqs_)
     {
-
-        step.second.erase(document_id);
-
+        word.second.erase(document_id);
     }
     SearchServer::words_freq_in_doc_.erase(document_id);
 
@@ -71,9 +69,8 @@ void SearchServer::RemoveDocument(int document_id) {
 std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::string_view raw_query, int document_id) const {
     return MatchDocument(std::execution::seq, raw_query, document_id);
 }
+
 std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::execution::sequenced_policy&, const std::string_view raw_query, int document_id) const {
-
-
     auto query = ParseQuery(raw_query);
 
     std::vector<std::string_view> matched_words;
@@ -96,6 +93,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
 
     return { matched_words, SearchServer::documents_.at(document_id).status };
 }
+
 std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::execution::parallel_policy&, const std::string_view raw_query, int document_id) const {
 
     SearchServer::Query query = ParseQueryNoSort(raw_query);
@@ -191,9 +189,11 @@ SearchServer::Query SearchServer::ParseQuery(const std::string_view text) const 
     std::sort(result.minus_words.begin(), result.minus_words.end());
     auto it = std::unique(result.minus_words.begin(), result.minus_words.end());
     result.minus_words.erase(it, result.minus_words.end());
+
     std::sort(result.plus_words.begin(), result.plus_words.end());
     it = std::unique(result.plus_words.begin(), result.plus_words.end());
     result.plus_words.erase(it, result.plus_words.end());
+
     return result;
 }
 
