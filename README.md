@@ -1,7 +1,6 @@
 # cpp-search-server
-- Модуль поиска документов, с учетом плюс/минус слов
-(слова, обязательные к поиску/ слова, которые не должны встречаться
-в документе). Работает по принципу поиска Google и Яндекс.
-Ранжирование по TF-ID
-- Достаточно переместить файлы в IDE, работающую с С++
+- The document search module, taking into account plus/minus words
+(words required for search / words that should not occur
+in the document). Works on the principle of the search on Google.
+Ranking by TF-ID
 - C++17
